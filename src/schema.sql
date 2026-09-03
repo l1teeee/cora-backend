@@ -25,3 +25,12 @@ CREATE TABLE IF NOT EXISTS auditoria (
   KEY idx_fecha (fecha),
   KEY idx_accion (accion)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS historial_asistente (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  assistant_id VARCHAR(64) NOT NULL,
+  config_json JSON NOT NULL,
+  usuario VARCHAR(120) NOT NULL,
+  fecha TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_assistant_fecha (assistant_id, fecha)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

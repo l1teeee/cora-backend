@@ -5,8 +5,11 @@ import {
   listarArchivos,
   subirArchivo,
   eliminarArchivo,
-  urlGrabacion
+  urlGrabacion,
+  idAsistente
 } from '../vapi/asistente.js'
+import { registrarAuditoria } from '../repository/auditoria.js'
+import { guardarSnapshot, listarSnapshots, obtenerSnapshot } from '../repository/historial.js'
 
 const EXTENSIONES_PERMITIDAS = ['.pdf', '.docx', '.txt']
 const TAMANO_MAXIMO_BYTES = 300 * 1024
@@ -60,6 +63,27 @@ function difierenJson(a, b) {
   return JSON.stringify(a) !== JSON.stringify(b)
 }
 
+// El dashboard manda el usuario de la sesion (body o header x-usuario); que falte no debe
+// impedir registrar el snapshot/auditoria, solo queda sin atribuir
+function usuarioDe(request) {
+  const usuario = request.body?.usuario ?? request.headers['x-usuario']
+  return typeof usuario === 'string' && usuario.trim() !== '' ? usuario.slice(0, 120) : 'desconocido'
+}
+
+// Lista blanca de campos restaurables al revertir: excluye explicitamente los de solo lectura
+// de Vapi (id, orgId, createdAt, updatedAt, isServerUrlSecretSet) en vez de borrarlos con delete
+function parcheRevertibleDesde(config) {
+  const parche = {}
+
+  if (config.name !== undefined) parche.name = config.name
+  if (config.firstMessage !== undefined) parche.firstMessage = config.firstMessage
+  if (config.model !== undefined) parche.model = config.model
+  if (config.voice !== undefined) parche.voice = config.voice
+  if (config.analysisPlan !== undefined) parche.analysisPlan = config.analysisPlan
+
+  return parche
+}
+
 export default async function (fastify, opts) {
   fastify.get('/vapi/asistente', async (request, reply) => {
     if (rechazaSinAdminKey(request, reply)) return reply
@@ -77,6 +101,7 @@ export default async function (fastify, opts) {
     if (rechazaSinAdminKey(request, reply)) return reply
 
     const { nombre, firstMessage, systemPrompt, voice, model, analysisPlan } = request.body ?? {}
+    const usuario = usuarioDe(request)
 
     try {
       const actual = await leerAsistente()
@@ -126,9 +151,31 @@ export default async function (fastify, opts) {
         return { ok: true, cambios: [] }
       }
 
+      let snapshotId
+
+      // Bloqueante y ANTES del PATCH: si no se puede guardar la version anterior no hay que
+      // aplicar el cambio, porque ese snapshot es lo que permite revertirlo despues
+      try {
+        const snapshot = await guardarSnapshot({ assistantId: actual.id, config: actual, usuario })
+        snapshotId = snapshot.id
+      } catch (error) {
+        request.log.error(error, 'Error guardando snapshot antes de actualizar el asistente de Vapi')
+        return reply.code(500).send({ error: 'No se pudo guardar la version anterior del asistente' })
+      }
+
       await actualizarAsistente(parche)
 
-      return { ok: true, cambios }
+      // El PATCH en Vapi ya se aplico y es irreversible desde aqui: un fallo de auditoria no
+      // debe tumbar la respuesta, solo quedar visible en logs y en el flag de la respuesta
+      let auditoriaRegistrada = true
+      try {
+        await registrarAuditoria({ usuario, accion: 'edito_asistente', detalle: { cambios, snapshotId } })
+      } catch (error) {
+        request.log.error(error, 'Error registrando la auditoria de edicion del asistente de Vapi')
+        auditoriaRegistrada = false
+      }
+
+      return { ok: true, cambios, snapshotId, auditoriaRegistrada }
     } catch (error) {
       request.log.error(error, 'Error actualizando el asistente de Vapi')
       return reply.code(502).send({ error: error.message })
@@ -164,7 +211,22 @@ export default async function (fastify, opts) {
 
     try {
       const archivo = await subirArchivo({ nombre, tipo, base64 })
-      return reply.code(201).send({ ok: true, archivo: normalizarArchivo(archivo) })
+      const archivoNormalizado = normalizarArchivo(archivo)
+
+      // Un fallo de auditoria no debe romper la subida, que ya se completo en Vapi
+      let auditoriaRegistrada = true
+      try {
+        await registrarAuditoria({
+          usuario: usuarioDe(request),
+          accion: 'subio_archivo',
+          detalle: { nombre, tamano: bytes.length, fileId: archivoNormalizado.id }
+        })
+      } catch (error) {
+        request.log.error(error, 'Error registrando la auditoria de subida de archivo')
+        auditoriaRegistrada = false
+      }
+
+      return reply.code(201).send({ ok: true, archivo: archivoNormalizado, auditoriaRegistrada })
     } catch (error) {
       request.log.error(error, 'Error subiendo el archivo a Vapi')
       return reply.code(502).send({ error: error.message })
@@ -176,9 +238,112 @@ export default async function (fastify, opts) {
 
     try {
       await eliminarArchivo(request.params.fileId)
-      return { ok: true }
+
+      // Un fallo de auditoria no debe romper el borrado, que ya se completo en Vapi
+      let auditoriaRegistrada = true
+      try {
+        await registrarAuditoria({
+          usuario: usuarioDe(request),
+          accion: 'elimino_archivo',
+          detalle: { fileId: request.params.fileId }
+        })
+      } catch (error) {
+        request.log.error(error, 'Error registrando la auditoria de eliminacion de archivo')
+        auditoriaRegistrada = false
+      }
+
+      return { ok: true, auditoriaRegistrada }
     } catch (error) {
       request.log.error(error, 'Error eliminando el archivo de Vapi')
+      return reply.code(502).send({ error: error.message })
+    }
+  })
+
+  const schemaHistorial = {
+    querystring: {
+      type: 'object',
+      properties: {
+        page: { type: 'integer', minimum: 1, default: 1 },
+        limit: { type: 'integer', minimum: 1, maximum: 100, default: 20 }
+      }
+    }
+  }
+
+  fastify.get('/vapi/historial', { schema: schemaHistorial }, async (request, reply) => {
+    if (rechazaSinAdminKey(request, reply)) return reply
+
+    const { page, limit } = request.query
+
+    try {
+      const assistantId = await idAsistente()
+      return await listarSnapshots({ assistantId, page, limit })
+    } catch (error) {
+      request.log.error(error, 'Error consultando el historial del asistente de Vapi')
+      return reply.code(502).send({ error: error.message })
+    }
+  })
+
+  fastify.get('/vapi/historial/:id', async (request, reply) => {
+    if (rechazaSinAdminKey(request, reply)) return reply
+
+    try {
+      const snapshot = await obtenerSnapshot(request.params.id)
+
+      if (!snapshot) {
+        return reply.code(404).send({ error: 'Snapshot no encontrado' })
+      }
+
+      return snapshot
+    } catch (error) {
+      request.log.error(error, 'Error consultando el snapshot del asistente de Vapi')
+      return reply.code(502).send({ error: error.message })
+    }
+  })
+
+  fastify.post('/vapi/historial/:id/revertir', async (request, reply) => {
+    if (rechazaSinAdminKey(request, reply)) return reply
+
+    const usuario = usuarioDe(request)
+
+    try {
+      const snapshot = await obtenerSnapshot(request.params.id)
+
+      if (!snapshot) {
+        return reply.code(404).send({ error: 'Snapshot no encontrado' })
+      }
+
+      const actual = await leerAsistente()
+      let snapshotPrevioId
+
+      // Revertir es tambien un cambio: sin este snapshot del estado actual no se podria
+      // deshacer una reversion equivocada. Mismo criterio que el PATCH: bloqueante antes de tocar Vapi
+      try {
+        const previo = await guardarSnapshot({ assistantId: actual.id, config: actual, usuario })
+        snapshotPrevioId = previo.id
+      } catch (error) {
+        request.log.error(error, 'Error guardando snapshot antes de revertir el asistente de Vapi')
+        return reply.code(500).send({ error: 'No se pudo guardar el estado actual antes de revertir' })
+      }
+
+      const parche = parcheRevertibleDesde(snapshot.config_json)
+      await actualizarAsistente(parche)
+
+      // Igual que en el PATCH: la reversion en Vapi ya se aplico, un fallo de auditoria no debe tumbar la respuesta
+      let auditoriaRegistrada = true
+      try {
+        await registrarAuditoria({
+          usuario,
+          accion: 'revirtio_asistente',
+          detalle: { snapshotId: snapshot.id, snapshotPrevioId }
+        })
+      } catch (error) {
+        request.log.error(error, 'Error registrando la auditoria de reversion del asistente de Vapi')
+        auditoriaRegistrada = false
+      }
+
+      return { ok: true, revertidoA: snapshot.id, snapshotPrevioId, auditoriaRegistrada }
+    } catch (error) {
+      request.log.error(error, 'Error revirtiendo el asistente de Vapi')
       return reply.code(502).send({ error: error.message })
     }
   })
