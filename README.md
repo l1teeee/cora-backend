@@ -82,9 +82,21 @@ webhook y el reintento, ese resumen se pierde (lo recupera despues `npm run sync
 (`RAILWAY_ENVIRONMENT` presente), `/webhook/vapi` responde 503 en vez de aceptar cualquier peticion.
 En local sin esa variable el webhook sigue abierto para poder probar con curl.
 
-Tabla `llamadas`: `id, call_id (UNIQUE), fecha, duracion (seg), costo, transcripcion, resumen, razon_finalizacion, numero_telefono, url_grabacion, usuario_asignado, created_at, updated_at`.
+Tabla `llamadas`: `id, call_id (UNIQUE), fecha, duracion (seg), costo, transcripcion, resumen, razon_finalizacion, numero_telefono, url_grabacion, usuario_asignado, nombre_capturado, motivo, requiere_seguimiento, created_at, updated_at`.
 
-Variables: `PORT, RESUMEN_ESPERA_MS, DATABASE_URL, MYSQLHOST, MYSQLPORT, MYSQLUSER, MYSQLPASSWORD, MYSQLDATABASE, VAPI_SERVER_SECRET, VAPI_SECRET_HEADER (default x-vapi-secret), VAPI_API_KEY, ADMIN_API_KEY`.
+Tabla `contactos`: `id, telefono (UNIQUE), nombre, notas, primera_llamada, ultima_llamada, total_llamadas, created_at, updated_at`. La alimenta el webhook tras guardar cada llamada.
+
+Tabla `usuarios`: `id, login (UNIQUE), nombre, rol (admin|agente), password_hash (scrypt), activo, created_at, updated_at`. La columna se llama `login` y no `usuario` porque en el resto del backend `usuario` es quien ejecuta la accion auditada, no la cuenta duena de la fila.
+
+El arranque siembra los usuarios iniciales solo si la tabla `usuarios` esta vacia: sin eso nadie
+puede entrar al panel tras la migracion. Con la tabla ya poblada la siembra no hace nada.
+
+`ADMIN_USUARIO/ADMIN_PASSWORD` y `AGENTE_USUARIO/AGENTE_PASSWORD` son un bootstrap de un solo uso
+para ese primer arranque. En cuanto exista el primer admin hay que **borrarlas del entorno**: dejar
+una password en claro en las variables de Railway no aporta nada, porque a partir de ahi las cuentas
+se crean y se editan desde el panel (Configuracion > Usuarios) y quedan en la tabla como hash scrypt.
+
+Variables: `PORT, RESUMEN_ESPERA_MS, DATABASE_URL, MYSQLHOST, MYSQLPORT, MYSQLUSER, MYSQLPASSWORD, MYSQLDATABASE, VAPI_SERVER_SECRET, VAPI_SECRET_HEADER (default x-vapi-secret), VAPI_API_KEY, ADMIN_API_KEY` y, solo en el primer despliegue, `ADMIN_USUARIO, ADMIN_PASSWORD, AGENTE_USUARIO, AGENTE_PASSWORD`.
 
 ## 3. Paso 1 - Crear MySQL en Railway
 

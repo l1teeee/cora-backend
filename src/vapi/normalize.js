@@ -101,19 +101,61 @@ export function extraerResumen(analysis, fallbackSummary) {
 // Vapi NO deja los structured outputs en analysis: van en artifact.structuredOutputs, indexados
 // por el id del output y con la forma { name, result }. analysis solo lleva el resumen generico
 // de summaryPlan, que este assistant tiene desactivado, de ahi que llegue siempre vacio.
+export function extraerSalidaEstructurada(artifact, nombre) {
+  const salidas = artifact?.structuredOutputs
+
+  if (!salidas || typeof salidas !== 'object') return null
+
+  const elegido = Object.values(salidas).find((salida) => salida?.name === nombre)
+
+  return elegido?.result ?? null
+}
+
 export function extraerResumenDeArtifact(artifact) {
   const salidas = artifact?.structuredOutputs
 
   if (!salidas || typeof salidas !== 'object') return null
 
   const valores = Object.values(salidas)
-  const elegido = valores.find((s) => s?.name === 'resumen_llamada') ?? valores[0]
-  const resultado = elegido?.result
+  // El fallback a la primera salida solo aplica si ninguna se llama resumen_llamada: con varios
+  // outputs configurados, caer siempre en la primera guardaria el nombre o el motivo como resumen
+  const hayResumenNombrado = valores.some((salida) => salida?.name === 'resumen_llamada')
+  const resultado = hayResumenNombrado ? extraerSalidaEstructurada(artifact, 'resumen_llamada') : valores[0]?.result
 
   if (resultado === null || resultado === undefined) return null
   if (typeof resultado === 'object') return JSON.stringify(resultado)
 
   return texto(resultado)
+}
+
+const MOTIVOS_VALIDOS = new Set(['consulta', 'queja', 'tramite', 'transferencia'])
+
+// Un objeto o un array como salida no es un texto: devolverlo con String() guardaria "[object Object]"
+function textoDeSalida(valor, maxLength) {
+  if (valor !== null && typeof valor === 'object') return null
+  return texto(valor, maxLength)
+}
+
+function motivoDeSalida(valor) {
+  const crudo = textoDeSalida(valor)
+  if (crudo === null) return null
+
+  const normalizado = crudo.toLowerCase()
+
+  return MOTIVOS_VALIDOS.has(normalizado) ? normalizado : null
+}
+
+function seguimientoDeSalida(valor) {
+  if (valor === true) return 1
+  if (valor === false) return 0
+
+  if (typeof valor === 'string') {
+    const normalizado = valor.trim().toLowerCase()
+    if (normalizado === 'true') return 1
+    if (normalizado === 'false') return 0
+  }
+
+  return null
 }
 
 // Para el polling posterior: "resumen_llamada" es el structured output que configura el assistant
@@ -132,6 +174,7 @@ export function normalizarDesdeWebhook(message) {
   const call = message?.call ?? message?.artifact?.call ?? {}
   const messages = message?.artifact?.messages ?? message?.messages
   const customer = message?.customer ?? message?.artifact?.customer ?? call.customer
+  const artifact = message?.artifact
 
   return {
     call_id: texto(call.id ?? message?.callId ?? message?.artifact?.call?.id),
@@ -144,7 +187,7 @@ export function normalizarDesdeWebhook(message) {
     }),
     costo: primerCostoValido(message?.cost, call.cost),
     transcripcion: construirTranscripcion(messages) ?? texto(message?.transcript ?? message?.artifact?.transcript),
-    resumen: extraerResumenDeArtifact(message?.artifact) ?? extraerResumen(message?.analysis, message?.summary),
+    resumen: extraerResumenDeArtifact(artifact) ?? extraerResumen(message?.analysis, message?.summary),
     razon_finalizacion: texto(message?.endedReason ?? call.endedReason, 100),
     numero_telefono: texto(customer?.number, 32),
     url_grabacion: texto(
@@ -154,12 +197,16 @@ export function normalizarDesdeWebhook(message) {
         message?.artifact?.stereoRecordingUrl ??
         message?.artifact?.recording?.mono?.combinedUrl,
       1024
-    )
+    ),
+    nombre_capturado: textoDeSalida(extraerSalidaEstructurada(artifact, 'nombre_persona'), 160),
+    motivo: motivoDeSalida(extraerSalidaEstructurada(artifact, 'motivo')),
+    requiere_seguimiento: seguimientoDeSalida(extraerSalidaEstructurada(artifact, 'requiere_seguimiento'))
   }
 }
 
 export function normalizarDesdeApi(call) {
   const messages = call?.messages ?? call?.artifact?.messages
+  const artifact = call?.artifact
 
   return {
     call_id: texto(call?.id),
@@ -171,9 +218,12 @@ export function normalizarDesdeApi(call) {
     }),
     costo: primerCostoValido(call?.cost),
     transcripcion: construirTranscripcion(messages) ?? texto(call?.transcript || call?.artifact?.transcript),
-    resumen: extraerResumenDeArtifact(call?.artifact) ?? extraerResumen(call?.analysis, call?.summary),
+    resumen: extraerResumenDeArtifact(artifact) ?? extraerResumen(call?.analysis, call?.summary),
     razon_finalizacion: texto(call?.endedReason, 100),
     numero_telefono: texto(call?.customer?.number, 32),
-    url_grabacion: texto(call?.recordingUrl ?? call?.stereoRecordingUrl ?? call?.artifact?.recordingUrl, 1024)
+    url_grabacion: texto(call?.recordingUrl ?? call?.stereoRecordingUrl ?? call?.artifact?.recordingUrl, 1024),
+    nombre_capturado: textoDeSalida(extraerSalidaEstructurada(artifact, 'nombre_persona'), 160),
+    motivo: motivoDeSalida(extraerSalidaEstructurada(artifact, 'motivo')),
+    requiere_seguimiento: seguimientoDeSalida(extraerSalidaEstructurada(artifact, 'requiere_seguimiento'))
   }
 }

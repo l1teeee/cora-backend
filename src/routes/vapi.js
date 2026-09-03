@@ -46,7 +46,10 @@ function normalizarAsistente(crudo) {
     systemPrompt: extraerSystemPrompt(crudo.model),
     voice: crudo.voice,
     model: crudo.model,
-    analysisPlan: crudo.analysisPlan
+    analysisPlan: crudo.analysisPlan,
+    // Version optimista: el dashboard la devuelve en el PATCH para que dos admins
+    // editando a la vez no se pisen en silencio
+    updatedAt: crudo.updatedAt ?? null
   }
 }
 
@@ -88,8 +91,11 @@ export default async function (fastify, opts) {
   fastify.get('/vapi/asistente', async (request, reply) => {
     if (rechazaSinAdminKey(request, reply)) return reply
 
+    // ?refrescar=1 salta el cache: es el boton de recargar del panel
+    const refrescar = request.query?.refrescar === '1' || request.query?.refrescar === 'true'
+
     try {
-      const crudo = await leerAsistente()
+      const crudo = await leerAsistente({ refrescar })
       return normalizarAsistente(crudo)
     } catch (error) {
       request.log.error(error, 'Error consultando el asistente de Vapi')
@@ -100,11 +106,23 @@ export default async function (fastify, opts) {
   fastify.patch('/vapi/asistente', async (request, reply) => {
     if (rechazaSinAdminKey(request, reply)) return reply
 
-    const { nombre, firstMessage, systemPrompt, voice, model, analysisPlan } = request.body ?? {}
+    const { nombre, firstMessage, systemPrompt, voice, model, analysisPlan, updatedAt } = request.body ?? {}
     const usuario = usuarioDe(request)
 
     try {
-      const actual = await leerAsistente()
+      // Nunca desde cache: el chequeo de concurrencia y el parche de `model` necesitan
+      // el estado real de Vapi, no uno de hace unos segundos
+      const actual = await leerAsistente({ refrescar: true })
+
+      // Concurrencia optimista: si quien edita leyo una version mas vieja que la vigente,
+      // guardar borraria el cambio del otro admin sin que ninguno se entere
+      if (updatedAt !== undefined && actual.updatedAt !== undefined && updatedAt !== actual.updatedAt) {
+        return reply.code(409).send({
+          error: 'La configuracion cambio desde que la abriste',
+          actualizadoEn: actual.updatedAt
+        })
+      }
+
       const parche = {}
       const cambios = []
 
@@ -163,7 +181,7 @@ export default async function (fastify, opts) {
         return reply.code(500).send({ error: 'No se pudo guardar la version anterior del asistente' })
       }
 
-      await actualizarAsistente(parche)
+      const actualizado = await actualizarAsistente(parche)
 
       // El PATCH en Vapi ya se aplico y es irreversible desde aqui: un fallo de auditoria no
       // debe tumbar la respuesta, solo quedar visible en logs y en el flag de la respuesta
@@ -175,7 +193,15 @@ export default async function (fastify, opts) {
         auditoriaRegistrada = false
       }
 
-      return { ok: true, cambios, snapshotId, auditoriaRegistrada }
+      // La version nueva vuelve al cliente para que su siguiente guardado no choque
+      // contra su propio cambio
+      return {
+        ok: true,
+        cambios,
+        snapshotId,
+        auditoriaRegistrada,
+        updatedAt: actualizado?.updatedAt ?? null
+      }
     } catch (error) {
       request.log.error(error, 'Error actualizando el asistente de Vapi')
       return reply.code(502).send({ error: error.message })
@@ -312,7 +338,8 @@ export default async function (fastify, opts) {
         return reply.code(404).send({ error: 'Snapshot no encontrado' })
       }
 
-      const actual = await leerAsistente()
+      // Igual que el PATCH: el snapshot previo tiene que retratar el estado real, no el cacheado
+      const actual = await leerAsistente({ refrescar: true })
       let snapshotPrevioId
 
       // Revertir es tambien un cambio: sin este snapshot del estado actual no se podria

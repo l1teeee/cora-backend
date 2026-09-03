@@ -40,18 +40,40 @@ export async function idAsistente() {
   return idAsistenteCacheado
 }
 
-export async function leerAsistente() {
+// Cache de lectura muy corto: la config del asistente cambia poco y cada carga del panel
+// pegaba a Vapi. No es una segunda fuente de verdad, solo evita repetir la misma llamada
+// en rafaga. Toda ruta de escritura pide { refrescar: true } porque necesita el estado real.
+const TTL_CACHE_MS = 45_000
+
+let cacheAsistente = null
+
+export async function leerAsistente({ refrescar = false } = {}) {
+  if (!refrescar && cacheAsistente !== null && Date.now() < cacheAsistente.expiraEn) {
+    return cacheAsistente.datos
+  }
+
   const id = await idAsistente()
-  return pedirVapi(`/assistant/${encodeURIComponent(id)}`)
+  const datos = await pedirVapi(`/assistant/${encodeURIComponent(id)}`)
+
+  cacheAsistente = { datos, expiraEn: Date.now() + TTL_CACHE_MS }
+
+  return datos
 }
 
 export async function actualizarAsistente(parche) {
   const id = await idAsistente()
-  return pedirVapi(`/assistant/${encodeURIComponent(id)}`, {
+
+  const actualizado = await pedirVapi(`/assistant/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(parche)
   })
+
+  // Vapi devuelve el asistente ya actualizado: se aprovecha para dejar el cache al dia
+  // en lugar de invalidarlo y obligar a la siguiente lectura a ir a la red.
+  cacheAsistente = { datos: actualizado, expiraEn: Date.now() + TTL_CACHE_MS }
+
+  return actualizado
 }
 
 export async function listarArchivos() {

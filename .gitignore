@@ -1,5 +1,6 @@
 node_modules
-.env
-.env.local
+# Cualquier .env queda fuera salvo el ejemplo: las copias tipo .env.bak tambien traen secretos
+.env*
+!.env.example
 *.log
 .DS_Store

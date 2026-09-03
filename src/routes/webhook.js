@@ -1,6 +1,7 @@
 import { comparaSecreto, enProduccion } from '../auth.js'
 import { normalizarDesdeWebhook } from '../vapi/normalize.js'
 import { guardarLlamada } from '../repository/llamadas.js'
+import { upsertDesdeLlamada } from '../repository/contactos.js'
 import { programarBusquedaDeResumen } from '../vapi/resumen-pendiente.js'
 
 export default async function (fastify, opts) {
@@ -57,6 +58,18 @@ export default async function (fastify, opts) {
         },
         'Llamada procesada desde webhook'
       )
+
+      // La llamada ya quedo guardada: si el upsert del contacto falla, responder error haria que
+      // Vapi reintente el webhook y el reintento sumaria otra vez total_llamadas
+      try {
+        await upsertDesdeLlamada({
+          telefono: llamada.numero_telefono,
+          nombre: llamada.nombre_capturado,
+          fecha: llamada.fecha
+        })
+      } catch (error) {
+        request.log.error(error, 'Error actualizando el contacto desde el webhook')
+      }
 
       // El structured output llega despues y sin webhook: se va a buscar en segundo plano.
       // Sin await a proposito, la respuesta a Vapi no debe esperar 15s.
