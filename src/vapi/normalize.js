@@ -98,6 +98,24 @@ export function extraerResumen(analysis, fallbackSummary) {
   return texto(elegido)
 }
 
+// Vapi NO deja los structured outputs en analysis: van en artifact.structuredOutputs, indexados
+// por el id del output y con la forma { name, result }. analysis solo lleva el resumen generico
+// de summaryPlan, que este assistant tiene desactivado, de ahi que llegue siempre vacio.
+export function extraerResumenDeArtifact(artifact) {
+  const salidas = artifact?.structuredOutputs
+
+  if (!salidas || typeof salidas !== 'object') return null
+
+  const valores = Object.values(salidas)
+  const elegido = valores.find((s) => s?.name === 'resumen_llamada') ?? valores[0]
+  const resultado = elegido?.result
+
+  if (resultado === null || resultado === undefined) return null
+  if (typeof resultado === 'object') return JSON.stringify(resultado)
+
+  return texto(resultado)
+}
+
 // Para el polling posterior: "resumen_llamada" es el structured output que configura el assistant
 // y es el que se quiere guardar. analysis.summary es el resumen generico de Vapi, solo respaldo.
 export function extraerResumenEstructurado(analysis) {
@@ -126,7 +144,7 @@ export function normalizarDesdeWebhook(message) {
     }),
     costo: primerCostoValido(message?.cost, call.cost),
     transcripcion: construirTranscripcion(messages) ?? texto(message?.transcript ?? message?.artifact?.transcript),
-    resumen: extraerResumen(message?.analysis, message?.summary),
+    resumen: extraerResumenDeArtifact(message?.artifact) ?? extraerResumen(message?.analysis, message?.summary),
     razon_finalizacion: texto(message?.endedReason ?? call.endedReason, 100),
     numero_telefono: texto(customer?.number, 32),
     url_grabacion: texto(
@@ -153,7 +171,7 @@ export function normalizarDesdeApi(call) {
     }),
     costo: primerCostoValido(call?.cost),
     transcripcion: construirTranscripcion(messages) ?? texto(call?.transcript || call?.artifact?.transcript),
-    resumen: extraerResumen(call?.analysis, call?.summary),
+    resumen: extraerResumenDeArtifact(call?.artifact) ?? extraerResumen(call?.analysis, call?.summary),
     razon_finalizacion: texto(call?.endedReason, 100),
     numero_telefono: texto(call?.customer?.number, 32),
     url_grabacion: texto(call?.recordingUrl ?? call?.stereoRecordingUrl ?? call?.artifact?.recordingUrl, 1024)

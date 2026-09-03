@@ -1,5 +1,5 @@
 import { obtenerLlamada } from './client.js'
-import { extraerResumenEstructurado } from './normalize.js'
+import { extraerResumenDeArtifact, extraerResumenEstructurado } from './normalize.js'
 import { actualizarResumen } from '../repository/llamadas.js'
 
 // Vapi procesa el structured output de forma asincrona y NO dispara un webhook cuando termina,
@@ -26,7 +26,7 @@ function agendarIntento(callId, intento, log) {
 async function buscarResumen(callId, intento, log) {
   try {
     const call = await obtenerLlamada(callId)
-    const resumen = extraerResumenEstructurado(call?.analysis)
+    const resumen = extraerResumenDeArtifact(call?.artifact) ?? extraerResumenEstructurado(call?.analysis)
 
     if (resumen) {
       await actualizarResumen(callId, resumen)
