@@ -68,10 +68,10 @@ asincrona y no dispara ningun evento cuando termina. Hay que ir a buscarlo.
    200 a Vapi de inmediato (la respuesta no espera al resumen).
 2. A los 15s se hace `GET https://api.vapi.ai/call/{call_id}` y se lee
    `analysis.structuredData.resumen_llamada` (con `analysis.summary` de respaldo).
-3. Si ya esta -> `UPDATE llamadas SET resumen = ?`. Si no -> un segundo intento a los 15s.
-4. Tras 2 intentos se abandona: el registro queda con `resumen = NULL` y nada falla.
+3. Si ya esta -> `UPDATE llamadas SET resumen = ?`. Si no -> se reintenta a los 30s y a los 45s.
+4. Tras 3 intentos (~60s de margen) se abandona: el registro queda con `resumen = NULL` y nada falla.
 
-Ajusta el intervalo con `RESUMEN_ESPERA_MS` (default 15000). El maximo de 2 intentos es fijo a
+Ajusta el intervalo con `RESUMEN_ESPERA_MS` (default 15000). El maximo de 3 intentos es fijo a
 proposito: evita timers acumulados por cada llamada cuyo resumen nunca se genere.
 
 Requiere `VAPI_API_KEY`. Sin ella el webhook sigue guardando todo lo demas, solo loguea un warning

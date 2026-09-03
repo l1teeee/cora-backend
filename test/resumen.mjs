@@ -41,10 +41,11 @@ const listo = { structuredData: { resumen_llamada: 'Consulta sobre inscripciones
 
 await escenario('resumen listo al 1er intento', [listo], 'Consulta sobre inscripciones, resuelta.', 250)
 await escenario('vacio al 1ro, listo al 2do', [{}, listo], 'Consulta sobre inscripciones, resuelta.', 350)
-const n1 = await escenario('nunca listo -> queda NULL', [{}], null, 400)
-check('nunca listo: exactamente 2 intentos, no mas', n1 === 2, `intentos=${n1}`)
-const n2 = await escenario('la API falla -> no rompe, reintenta', ['error'], null, 400)
-check('API falla: exactamente 2 intentos', n2 === 2, `intentos=${n2}`)
+await escenario('vacio 1ro y 2do, listo al 3ro', [{}, {}, listo], 'Consulta sobre inscripciones, resuelta.', 500)
+const n1 = await escenario('nunca listo -> queda NULL', [{}], null, 700)
+check('nunca listo: exactamente 3 intentos, no mas', n1 === 3, `intentos=${n1}`)
+const n2 = await escenario('la API falla -> no rompe, reintenta', ['error'], null, 700)
+check('API falla: exactamente 3 intentos', n2 === 3, `intentos=${n2}`)
 
 // prioridad del structured output sobre el summary generico
 await escenario('prioriza resumen_llamada sobre analysis.summary',

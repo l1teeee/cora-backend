@@ -3,11 +3,11 @@ import { extraerResumenEstructurado } from './normalize.js'
 import { actualizarResumen } from '../repository/llamadas.js'
 
 // Vapi procesa el structured output de forma asincrona y NO dispara un webhook cuando termina,
-// asi que hay que ir a buscarlo. Dos intentos y se abandona: el resumen no es critico y un
-// reintento infinito dejaria timers colgados por cada llamada que nunca lo genere.
+// asi que hay que ir a buscarlo. Tres intentos (15s, 30s, 45s) y se abandona: el resumen no es
+// critico y un reintento infinito dejaria timers colgados por cada llamada que nunca lo genere.
 // Configurable para poder testear el retry sin esperar 30s reales, y por si 15s se quedan cortos
 const ESPERA_MS = Number(process.env.RESUMEN_ESPERA_MS) || 15_000
-const MAX_INTENTOS = 2
+const MAX_INTENTOS = 3
 
 export function programarBusquedaDeResumen(callId, log) {
   if (!process.env.VAPI_API_KEY) {
