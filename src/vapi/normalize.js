@@ -98,6 +98,18 @@ export function extraerResumen(analysis, fallbackSummary) {
   return texto(elegido)
 }
 
+// Para el polling posterior: "resumen_llamada" es el structured output que configura el assistant
+// y es el que se quiere guardar. analysis.summary es el resumen generico de Vapi, solo respaldo.
+export function extraerResumenEstructurado(analysis) {
+  const structuredData = analysis?.structuredData
+  const elegido = structuredData?.resumen_llamada ?? analysis?.summary ?? structuredData
+
+  if (elegido === null || elegido === undefined) return null
+  if (typeof elegido === 'object') return JSON.stringify(elegido)
+
+  return texto(elegido)
+}
+
 export function normalizarDesdeWebhook(message) {
   const call = message?.call ?? message?.artifact?.call ?? {}
   const messages = message?.artifact?.messages ?? message?.messages

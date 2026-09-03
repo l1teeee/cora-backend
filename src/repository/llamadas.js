@@ -45,6 +45,11 @@ export async function guardarLlamada(llamada) {
   return { call_id, insertada: result.affectedRows === 1 }
 }
 
+export async function actualizarResumen(callId, resumen) {
+  const result = await query('UPDATE llamadas SET resumen = ? WHERE call_id = ?', [resumen, callId])
+  return result.affectedRows > 0
+}
+
 export async function guardarLlamadas(lista) {
   let insertadas = 0
   let actualizadas = 0

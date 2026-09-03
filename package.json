@@ -9,7 +9,7 @@
     "dev": "node --watch src/server.js",
     "migrate": "node src/migrate.js",
     "sync": "node src/scripts/sync.js",
-    "smoke": "node test/smoke.mjs"
+    "smoke": "node test/smoke.mjs && node test/resumen.mjs"
   },
   "dependencies": {
     "fastify": "^5.2.0",

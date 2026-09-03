@@ -26,6 +26,24 @@ export async function obtenerLlamadas({ limit = 100, createdAtLt } = {}) {
   return Array.isArray(data) ? data : (data.results ?? [])
 }
 
+export async function obtenerLlamada(callId) {
+  const apiKey = process.env.VAPI_API_KEY
+
+  if (!apiKey) {
+    throw new Error('Falta VAPI_API_KEY')
+  }
+
+  const res = await fetch(`${VAPI_API_URL}/${encodeURIComponent(callId)}`, {
+    headers: { Authorization: `Bearer ${apiKey}` }
+  })
+
+  if (!res.ok) {
+    throw new Error(`Vapi API ${res.status}: ${await res.text()}`)
+  }
+
+  return res.json()
+}
+
 export async function obtenerTodasLasLlamadas({ limit = 100, maxPaginas = 20 } = {}) {
   const todas = new Map()
   let createdAtLt

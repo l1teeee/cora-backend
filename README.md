@@ -59,13 +59,32 @@ Endpoints:
 `x-admin-key` igual que el sync. Si el dashboard que lo consuma ya hace su propia autenticacion y
 prefieres abrirlo, quita la linea `rechazaSinAdminKey` de `src/routes/llamadas.js`.
 
+### Como se obtiene el resumen
+
+El structured output `resumen_llamada` **no llega en el webhook**: Vapi lo procesa de forma
+asincrona y no dispara ningun evento cuando termina. Hay que ir a buscarlo.
+
+1. Llega `end-of-call-report` -> se guarda la llamada completa con `resumen = NULL` y se responde
+   200 a Vapi de inmediato (la respuesta no espera al resumen).
+2. A los 15s se hace `GET https://api.vapi.ai/call/{call_id}` y se lee
+   `analysis.structuredData.resumen_llamada` (con `analysis.summary` de respaldo).
+3. Si ya esta -> `UPDATE llamadas SET resumen = ?`. Si no -> un segundo intento a los 15s.
+4. Tras 2 intentos se abandona: el registro queda con `resumen = NULL` y nada falla.
+
+Ajusta el intervalo con `RESUMEN_ESPERA_MS` (default 15000). El maximo de 2 intentos es fijo a
+proposito: evita timers acumulados por cada llamada cuyo resumen nunca se genere.
+
+Requiere `VAPI_API_KEY`. Sin ella el webhook sigue guardando todo lo demas, solo loguea un warning
+y el resumen queda NULL. Los timers viven en memoria: si Railway reinicia el contenedor entre el
+webhook y el reintento, ese resumen se pierde (lo recupera despues `npm run sync`).
+
 **Fail closed en produccion**: si `VAPI_SERVER_SECRET` no esta definido y el proceso corre en Railway
 (`RAILWAY_ENVIRONMENT` presente), `/webhook/vapi` responde 503 en vez de aceptar cualquier peticion.
 En local sin esa variable el webhook sigue abierto para poder probar con curl.
 
 Tabla `llamadas`: `id, call_id (UNIQUE), fecha, duracion (seg), costo, transcripcion, resumen, razon_finalizacion, numero_telefono, url_grabacion, usuario_asignado, created_at, updated_at`.
 
-Variables: `PORT, DATABASE_URL, MYSQLHOST, MYSQLPORT, MYSQLUSER, MYSQLPASSWORD, MYSQLDATABASE, VAPI_SERVER_SECRET, VAPI_SECRET_HEADER (default x-vapi-secret), VAPI_API_KEY, ADMIN_API_KEY`.
+Variables: `PORT, RESUMEN_ESPERA_MS, DATABASE_URL, MYSQLHOST, MYSQLPORT, MYSQLUSER, MYSQLPASSWORD, MYSQLDATABASE, VAPI_SERVER_SECRET, VAPI_SECRET_HEADER (default x-vapi-secret), VAPI_API_KEY, ADMIN_API_KEY`.
 
 ## 3. Paso 1 - Crear MySQL en Railway
 

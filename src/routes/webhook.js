@@ -1,6 +1,7 @@
 import { comparaSecreto, enProduccion } from '../auth.js'
 import { normalizarDesdeWebhook } from '../vapi/normalize.js'
 import { guardarLlamada } from '../repository/llamadas.js'
+import { programarBusquedaDeResumen } from '../vapi/resumen-pendiente.js'
 
 export default async function (fastify, opts) {
   const secret = process.env.VAPI_SERVER_SECRET
@@ -57,7 +58,18 @@ export default async function (fastify, opts) {
         'Llamada procesada desde webhook'
       )
 
-      return reply.code(200).send({ ok: true, call_id: resultado.call_id, insertada: resultado.insertada })
+      // El structured output llega despues y sin webhook: se va a buscar en segundo plano.
+      // Sin await a proposito, la respuesta a Vapi no debe esperar 15s.
+      if (!llamada.resumen) {
+        programarBusquedaDeResumen(resultado.call_id, request.log)
+      }
+
+      return reply.code(200).send({
+        ok: true,
+        call_id: resultado.call_id,
+        insertada: resultado.insertada,
+        resumenPendiente: !llamada.resumen
+      })
     } catch (error) {
       request.log.error(error, 'Error guardando llamada desde webhook')
       return reply.code(500).send({ ok: false, error: 'Error guardando la llamada' })
