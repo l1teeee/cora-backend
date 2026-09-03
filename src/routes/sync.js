@@ -1,3 +1,4 @@
+import { rechazaSinAdminKey } from '../auth.js'
 import { obtenerTodasLasLlamadas } from '../vapi/client.js'
 import { normalizarDesdeApi } from '../vapi/normalize.js'
 import { guardarLlamadas } from '../repository/llamadas.js'
@@ -13,15 +14,7 @@ const schema = {
 }
 
 async function sincronizar(request, reply) {
-  const adminKey = process.env.ADMIN_API_KEY
-
-  if (!adminKey) {
-    return reply.code(503).send({ error: 'ADMIN_API_KEY no configurado' })
-  }
-
-  if (request.headers['x-admin-key'] !== adminKey) {
-    return reply.code(401).send({ error: 'No autorizado' })
-  }
+  if (rechazaSinAdminKey(request, reply)) return reply
 
   const { limit, maxPaginas } = request.query
 

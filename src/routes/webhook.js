@@ -1,21 +1,27 @@
-import { timingSafeEqual } from 'node:crypto'
+import { comparaSecreto, enProduccion } from '../auth.js'
 import { normalizarDesdeWebhook } from '../vapi/normalize.js'
 import { guardarLlamada } from '../repository/llamadas.js'
 
 export default async function (fastify, opts) {
   const secret = process.env.VAPI_SERVER_SECRET
 
-  if (!secret) {
-    fastify.log.warn('VAPI_SERVER_SECRET no definido: el webhook acepta cualquier peticion')
+  // Sin secret el endpoint es abierto: tolerable en local para probar con curl, nunca desplegado.
+  // Fail closed en Railway: mejor un webhook que responde 503 que uno que acepta llamadas falsas.
+  if (!secret && enProduccion) {
+    fastify.log.error('VAPI_SERVER_SECRET no definido en produccion: /webhook/vapi respondera 503')
+  } else if (!secret) {
+    fastify.log.warn('VAPI_SERVER_SECRET no definido: el webhook acepta cualquier peticion (solo local)')
   }
 
   fastify.addHook('preHandler', async (request, reply) => {
+    if (!secret && enProduccion) {
+      return reply.code(503).send({ error: 'VAPI_SERVER_SECRET no configurado' })
+    }
+
     if (!secret) return
 
     const headerNombre = (process.env.VAPI_SECRET_HEADER || 'x-vapi-secret').toLowerCase()
-    const recibido = request.headers[headerNombre] || ''
-
-    if (!comparaSecreto(recibido, secret)) {
+    if (!comparaSecreto(request.headers[headerNombre], secret)) {
       return reply.code(401).send({ error: 'Secret invalido' })
     }
   })
@@ -57,14 +63,4 @@ export default async function (fastify, opts) {
       return reply.code(500).send({ ok: false, error: 'Error guardando la llamada' })
     }
   })
-}
-
-// timingSafeEqual exige buffers de igual longitud; si difieren, el secreto es invalido directamente
-function comparaSecreto(a, b) {
-  const bufA = Buffer.from(a)
-  const bufB = Buffer.from(b)
-
-  if (bufA.length !== bufB.length) return false
-
-  return timingSafeEqual(bufA, bufB)
 }

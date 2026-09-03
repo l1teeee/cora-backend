@@ -1,3 +1,4 @@
+import { rechazaSinAdminKey } from '../auth.js'
 import { listarLlamadas } from '../repository/llamadas.js'
 
 const schema = {
@@ -12,6 +13,9 @@ const schema = {
 
 export default async function (fastify, opts) {
   fastify.get('/llamadas', { schema }, async (request, reply) => {
+    // El listado devuelve telefonos, resumenes y grabaciones de estudiantes: no puede ser publico
+    if (rechazaSinAdminKey(request, reply)) return reply
+
     const { page, limit } = request.query
 
     try {

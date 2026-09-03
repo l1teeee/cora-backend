@@ -46,7 +46,22 @@ cora-backend/
   src/scripts/sync.js     npm run sync
 ```
 
-Endpoints: `GET /health` · `POST /webhook/vapi` · `GET /llamadas?page=1&limit=20` · `GET|POST /sync/vapi` (header `x-admin-key`).
+Endpoints:
+
+| Endpoint | Auth |
+| --- | --- |
+| `GET /health` | publico |
+| `POST /webhook/vapi` | `x-vapi-secret` (el Server URL Secret de Vapi) |
+| `GET /llamadas?page=1&limit=20` | `x-admin-key` |
+| `GET\|POST /sync/vapi` | `x-admin-key` |
+
+`GET /llamadas` devuelve telefonos, resumenes y URLs de grabaciones de estudiantes, asi que pide
+`x-admin-key` igual que el sync. Si el dashboard que lo consuma ya hace su propia autenticacion y
+prefieres abrirlo, quita la linea `rechazaSinAdminKey` de `src/routes/llamadas.js`.
+
+**Fail closed en produccion**: si `VAPI_SERVER_SECRET` no esta definido y el proceso corre en Railway
+(`RAILWAY_ENVIRONMENT` presente), `/webhook/vapi` responde 503 en vez de aceptar cualquier peticion.
+En local sin esa variable el webhook sigue abierto para poder probar con curl.
 
 Tabla `llamadas`: `id, call_id (UNIQUE), fecha, duracion (seg), costo, transcripcion, resumen, razon_finalizacion, numero_telefono, url_grabacion, usuario_asignado, created_at, updated_at`.
 
@@ -180,13 +195,13 @@ Este segundo payload trae el MISMO `call_id` y solo el `analysis`; tras enviarlo
 ### Listar llamadas
 
 ```
-curl "http://localhost:3000/llamadas?page=1&limit=10"
+curl -H "x-admin-key: cambia-esto" "http://localhost:3000/llamadas?page=1&limit=10"
 ```
 
 PowerShell:
 
 ```
-Invoke-RestMethod -Uri "http://localhost:3000/llamadas?page=1&limit=10"
+Invoke-RestMethod -Uri "http://localhost:3000/llamadas?page=1&limit=10" -Headers @{ 'x-admin-key' = 'cambia-esto' }
 ```
 
 ### Sync protegido
