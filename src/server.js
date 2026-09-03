@@ -6,6 +6,7 @@ import rutaWebhook from './routes/webhook.js'
 import rutaLlamadas from './routes/llamadas.js'
 import rutaSync from './routes/sync.js'
 import rutaAuditoria from './routes/auditoria.js'
+import rutaVapi from './routes/vapi.js'
 
 
 const app = Fastify({ logger: true, bodyLimit: 10 * 1024 * 1024 }) // payloads de Vapi con transcripcion completa superan el limite default de 1MB
@@ -19,6 +20,7 @@ await app.register(rutaWebhook)
 await app.register(rutaLlamadas)
 await app.register(rutaSync)
 await app.register(rutaAuditoria)
+await app.register(rutaVapi)
 
 async function iniciar() {
   try {
