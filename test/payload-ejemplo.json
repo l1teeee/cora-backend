@@ -1,0 +1,83 @@
+{
+  "message": {
+    "type": "end-of-call-report",
+    "endedReason": "customer-ended-call",
+    "durationSeconds": 74,
+    "startedAt": "2026-09-02T15:04:11.000Z",
+    "endedAt": "2026-09-02T15:05:25.000Z",
+    "cost": 0.0912,
+    "analysis": {},
+    "artifact": {
+      "messages": [
+        {
+          "role": "system",
+          "message": "Eres CORA, la asistente de atención telefónica de la Universidad. Ayudas a estudiantes y aspirantes con información sobre admisiones, inscripciones y trámites. Responde de forma breve, clara y en español.",
+          "time": 1756825451000,
+          "secondsFromStart": 0
+        },
+        {
+          "role": "bot",
+          "message": "Hola, gracias por llamar a la Universidad. Soy CORA, tu asistente virtual. ¿En qué puedo ayudarte hoy?",
+          "time": 1756825452000,
+          "secondsFromStart": 1
+        },
+        {
+          "role": "user",
+          "message": "Hola, quería preguntar cuándo son las fechas de inscripción para el próximo semestre.",
+          "time": 1756825458000,
+          "secondsFromStart": 7
+        },
+        {
+          "role": "bot",
+          "message": "Claro. Las inscripciones para el semestre que inicia en enero abren el 6 de octubre y cierran el 21 de noviembre. Te recomiendo inscribirte antes del 10 de noviembre para asegurar cupo.",
+          "time": 1756825463000,
+          "secondsFromStart": 12
+        },
+        {
+          "role": "user",
+          "message": "Perfecto. ¿Y cuáles son los requisitos de admisión para primer ingreso?",
+          "time": 1756825480000,
+          "secondsFromStart": 29
+        },
+        {
+          "role": "bot",
+          "message": "Para primer ingreso necesitas: título de bachiller o su equivalente, certificado de notas de los últimos dos años, una fotografía tamaño carné, copia de tu documento de identidad y haber presentado el examen de admisión con un puntaje mínimo de 60 sobre 100.",
+          "time": 1756825486000,
+          "secondsFromStart": 35
+        },
+        {
+          "role": "user",
+          "message": "Entendido, muchas gracias por la información.",
+          "time": 1756825511000,
+          "secondsFromStart": 60
+        },
+        {
+          "role": "bot",
+          "message": "Con gusto. Si tienes alguna otra duda sobre el proceso de admisión, puedes llamarnos de nuevo o escribirnos al correo de admisiones. Que tengas un buen día.",
+          "time": 1756825516000,
+          "secondsFromStart": 65
+        }
+      ],
+      "recordingUrl": "https://storage.vapi.ai/rec-demo-001-mono.wav",
+      "stereoRecordingUrl": "https://storage.vapi.ai/rec-demo-001-stereo.wav",
+      "call": {
+        "id": "b7f2c1a4-9d3e-4c88-a1f5-demo00000001",
+        "type": "inboundPhoneCall",
+        "cost": 0.0912,
+        "createdAt": "2026-09-02T15:04:09.000Z",
+        "phoneCallProviderId": "CA-demo-0001"
+      },
+      "customer": {
+        "number": "+50371234567"
+      },
+      "phoneNumber": {
+        "id": "pn-demo-0001",
+        "number": "+15855551234"
+      },
+      "assistant": {
+        "id": "as-demo-0001",
+        "name": "Call Center Support"
+      }
+    }
+  }
+}

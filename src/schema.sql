@@ -1,0 +1,17 @@
+CREATE TABLE IF NOT EXISTS llamadas (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  call_id VARCHAR(64) NOT NULL,
+  fecha DATETIME NULL,
+  duracion INT NULL,
+  costo DECIMAL(10,4) NULL,
+  transcripcion LONGTEXT NULL,
+  resumen TEXT NULL,
+  razon_finalizacion VARCHAR(100) NULL,
+  numero_telefono VARCHAR(32) NULL,
+  url_grabacion VARCHAR(1024) NULL,
+  usuario_asignado VARCHAR(120) NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_call_id (call_id),
+  KEY idx_fecha (fecha)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -1,0 +1,18 @@
+{
+  "message": {
+    "type": "end-of-call-report",
+    "analysis": {
+      "summary": "El estudiante consultó las fechas de inscripción del próximo semestre y los requisitos de admisión para primer ingreso. Se le brindó la información completa y quedó conforme.",
+      "structuredData": {
+        "resumen_llamada": "Llamada de un aspirante preguntando por fechas de inscripción y requisitos de admisión. CORA respondió con las fechas (6 de octubre al 21 de noviembre) y el listado de requisitos. El aspirante agradeció y finalizó la llamada sin dudas adicionales.",
+        "motivo": "admisiones",
+        "resuelto": true
+      }
+    },
+    "artifact": {
+      "call": {
+        "id": "b7f2c1a4-9d3e-4c88-a1f5-demo00000001"
+      }
+    }
+  }
+}
