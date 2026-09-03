@@ -15,3 +15,13 @@ CREATE TABLE IF NOT EXISTS llamadas (
   UNIQUE KEY uk_call_id (call_id),
   KEY idx_fecha (fecha)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS auditoria (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  usuario VARCHAR(120) NOT NULL,
+  accion VARCHAR(60) NOT NULL,
+  detalle JSON NULL,
+  fecha TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_fecha (fecha),
+  KEY idx_accion (accion)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
